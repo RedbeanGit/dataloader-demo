@@ -9,6 +9,7 @@ const {
   GraphQLString,
   GraphQLList,
 } = require("graphql");
+const DataLoader = require("dataloader");
 
 // Simulated database
 const ingredients = [
@@ -33,6 +34,16 @@ const getRecipeById = (id) => {
   return recipes.find((recipe) => recipe.id === id);
 };
 
+// Loader to batch requests for ingredients
+const ingredientLoader = new DataLoader((ids) => {
+  return Promise.resolve(ids.map((id) => getIngredientById(id)));
+});
+
+// Loader to batch requests for recipes
+const recipeLoader = new DataLoader((ids) => {
+  return Promise.resolve(ids.map((id) => getRecipeById(id)));
+});
+
 // GraphQL Schema
 const IngredientType = new GraphQLObjectType({
   name: "Ingredient",
@@ -50,7 +61,7 @@ const RecipeType = new GraphQLObjectType({
     ingredients: {
       type: new GraphQLList(IngredientType),
       resolve: (parent) =>
-        parent.ingredientIds.map((id) => getIngredientById(id)),
+        parent.ingredientIds.map((id) => ingredientLoader.load(id)),
     },
   },
 });
@@ -63,7 +74,7 @@ const RootQueryType = new GraphQLObjectType({
       args: {
         id: { type: GraphQLInt },
       },
-      resolve: (parent, args) => getRecipeById(args.id),
+      resolve: (parent, args) => recipeLoader.load(args.id),
     },
     recipes: {
       type: new GraphQLList(RecipeType),
